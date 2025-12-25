@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Memory — Collage Card (Updated)</title>
+
+  <!--
+    memories-collage-updated.html
+    - Full-page animated gradient background
+    - Centered single memory card (collage of 5 images from assets/images/art/)
+    - Responsive collage-style overlapping layout (mobile / tablet / desktop)
+    - Subtle shadow, rounded corners, soft hover, image hover zoom/tilt/glow
+    - NO textarea: static paragraph under the title (as requested)
+    - Pure modern CSS + vanilla JS (no external libraries)
+    - JS only handles collage pointer tilt / accessibility / image error handling
+  -->
+
+  <style>
+    /* ---------- LIGHT THEME TEXT FIX ---------- */
+    .memory-card,
+    .memory-card * {
+      color: #222;
+    }
+
+    .card-desc {
+      color: #555;
+    }
+
+    .card-title {
+      color: #1e1e1e;
+    }
+
+    .foot {
+      color: #666;
+    }
+
+    /* ============================
+       Variables & Base Styles
+       ============================ */
+    :root{
+      --bg-dark: #070617;
+      --card-radius: 18px;
+      --card-padding: 26px;
+      --card-shadow: 0 18px 48px rgba(3,6,23,0.12);
+      --image-shadow: 0 8px 28px rgba(2,6,23,0.08);
+      --max-width: 980px;
+    }
+
+    html,body{
+      height:100%;
+      margin:0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system,"Segoe UI", Roboto, "Helvetica Neue", Arial;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      background: #fff0f5; /* soft light pink base */
+    }
+
+    /* ============================
+       Full-page animated gradient background
+       ============================ */
+    body {
+      position: relative;
+      overflow: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: -20%;
+      z-index: -2;
+      background:
+        radial-gradient(600px 400px at 10% 20%, rgba(255,182,193,0.35), transparent 40%),
+        radial-gradient(500px 350px at 85% 80%, rgba(255,192,203,0.35), transparent 40%),
+        linear-gradient(120deg, #ffd1dc, #ffc0cb 40%, #ffe4ec);
+      filter: blur(18px);
+      animation: bgShift 14s linear infinite;
+    }
+
+    body::after {
+      content:"";
+      position: fixed;
+      inset: -10%;
+      z-index: -1;
+      background-image:
+        radial-gradient(circle, rgba(255,255,255,0.25) 1px, transparent 1.2px);
+      background-size: 140px 140px;
+      opacity: 0.9;
+      animation: grainMove 25s linear infinite;
+      pointer-events: none;
+    }
+
+    @keyframes bgShift {
+      0%   { transform: translate3d(-4%, -2%, 0) rotate(0deg) scale(1); }
+      50%  { transform: translate3d(4%, 2%, 0) rotate(2deg) scale(1.02); }
+      100% { transform: translate3d(-4%, -2%, 0) rotate(0deg) scale(1); }
+    }
+
+    @keyframes grainMove {
+      from { transform: translate(0px,0px); }
+      to { transform: translate(40px,-24px); }
+    }
+
+    /* ============================
+       Centering & Layout
+       ============================ */
+    .wrap {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 36px;
+    }
+
+    .center-column {
+      width: 100%;
+      max-width: var(--max-width);
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ============================
+       Memory Card
+       ============================ */
+    .memory-card {
+      width: min(920px, 96vw);
+      background: rgba(255,255,255,0.92);
+      border-radius: var(--card-radius);
+      padding: var(--card-padding);
+      box-shadow: var(--card-shadow);
+      border: 1px solid rgba(0,0,0,0.06);
+      transition: transform 0.35s cubic-bezier(.2,.9,.3,1), box-shadow 0.25s ease;
+      position: relative;
+      overflow: visible;
+    }
+
+    .memory-card:hover {
+      transform: translateY(-8px) scale(1.002);
+      box-shadow: 0 28px 64px rgba(3,6,23,0.14);
+    }
+
+    /* Header inside card */
+    .card-header {
+      text-align: center;
+      margin-bottom: 14px;
+    }
+
+    .card-title {
+      margin: 0 0 6px 0;
+      font-size: 1.55rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: #1e1e1e;
+    }
+
+    .card-desc {
+      margin: 0;
+      font-size: 0.98rem;
+      line-height: 1.35;
+      max-width: 86%;
+      margin-left: auto;
+      margin-right: auto;
+      color: #555;
+    }
+
+    /* ============================
+       Collage container
+       ============================ */
+    .collage {
+      margin-top: 18px;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      max-height: 62vh;
+      position: relative;
+      pointer-events: auto;
+      -webkit-transform-style: preserve-3d;
+              transform-style: preserve-3d;
+      perspective: 1000px;
+    }
+
+    .collage-item {
+      position: absolute;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: var(--image-shadow);
+      border: 1px solid rgba(0,0,0,0.06);
+      transition: transform 0.45s cubic-bezier(.2,.9,.3,1), box-shadow 0.35s ease, filter 0.35s ease;
+      will-change: transform, filter;
+      background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(240,240,240,0.98));
+    }
+
+    .collage-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      transform-origin: center center;
+      transition: transform 0.6s cubic-bezier(.2,.9,.2,1), filter 0.45s ease;
+      will-change: transform, filter;
+      backface-visibility: hidden;
+    }
+
+    .collage-item:hover {
+      transform: translateZ(28px) scale(1.02);
+      box-shadow: 0 26px 60px rgba(2,8,30,0.12);
+      z-index: 40 !important;
+    }
+    .collage-item:hover img {
+      transform: scale(1.08);
+      filter: saturate(1.03) contrast(1.02);
+    }
+
+    /* Desktop & wide layout */
+    .item-1 { left: 2%; top: 5%; width: 28%; height: 50%; }
+    .item-2 { left: 32%; top: 5%; width: 28%; height: 50%; }
+    .item-3 { left: 62%; top: 5%; width: 28%; height: 50%; }
+    .item-4 { left: 12%; top: 58%; width: 28%; height: 38%; }
+    .item-5 { left: 42%; top: 58%; width: 28%; height: 38%; }
+
+    /* Tablet adjustments */
+    @media (min-width: 600px) and (max-width: 999px) {
+      .collage { aspect-ratio: 4/3; }
+      .item-1 { left: 3%; top: 6%; width: 44%; height: 46%; transform: rotate(-4deg); z-index: 10; }
+      .item-2 { left: 36%; top: 10%; width: 48%; height: 60%; transform: rotate(1.5deg); z-index: 20; }
+      .item-3 { left: 62%; top: 58%; width: 36%; height: 40%; transform: rotate(6deg); z-index: 8; }
+      .item-4 { left: 2%; top: 56%; width: 34%; height: 36%; transform: rotate(4deg); z-index: 6; }
+      .item-5 { left: 40%; top: 62%; width: 40%; height: 30%; transform: rotate(-3deg); z-index: 5; }
+    }
+
+    /* Mobile adjustments */
+    @media (max-width: 599px) {
+      .memory-card {
+        padding: 18px;
+        border-radius: 14px;
+      }
+      .card-title { font-size: 1.25rem; }
+      .collage { aspect-ratio: 3 / 4; max-height: 66vh; }
+      .item-1 { left: 6%; top: 6%; width: 88%; height: 44%; transform: rotate(-1deg); z-index: 10; }
+      .item-2 { left: 8%; top: 34%; width: 84%; height: 44%; transform: rotate(0deg); z-index: 20; }
+      .item-3 { left: 6%; top: 62%; width: 38%; height: 34%; transform: rotate(2deg); z-index: 8; }
+      .item-4 { left: 54%; top: 62%; width: 40%; height: 34%; transform: rotate(-2deg); z-index: 6; }
+      .item-5 { left: 44%; top: 28%; width: 40%; height: 30%; transform: rotate(4deg); z-index: 5; opacity: 0.95; }
+    }
+
+    /* Footer note */
+    .foot {
+      margin-top: 14px;
+      text-align: center;
+      font-size: 0.9rem;
+    }
+.next-btn {
+  position: fixed;
+  top: 50%;
+  right: 25px;
+  transform: translateY(-50%);
+  padding: 14px 22px;
+  font-weight: 700;
+  font-size: 1rem;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 24px; /* pill shape */
+  background: linear-gradient(135deg, #1a1a1a, #2c2c2c, #3d3d3d);
+  background-size: 400% 400%;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.6), 0 0 12px rgba(123, 231, 199, 0.3);
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  animation: darkGradient 4s ease-in-out infinite, floatBtn 2.5s ease-in-out infinite alternate;
+}
+
+/* Hover effect */
+.next-btn:hover {
+  transform: translateY(-50%) scale(1.1) rotate(-3deg);
+  box-shadow: 0 12px 28px rgba(0,0,0,0.8), 0 0 18px rgba(123, 231, 199, 0.5);
+  background-size: 600% 600%;
+}
+
+/* Moving gradient animation */
+@keyframes darkGradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Floating/rocking motion */
+@keyframes floatBtn {
+  0% { transform: translateY(-50%) translateX(0) rotate(0deg); }
+  50% { transform: translateY(-48%) translateX(6px) rotate(2deg); }
+  100% { transform: translateY(-50%) translateX(0) rotate(0deg); }
+}
+
+/* Toy-style arrow pulse */
+.next-btn::after {
+  content: "⭢";
+  font-size: 1.2rem;
+  display: inline-block;
+  animation: arrowPulse 1s ease-in-out infinite alternate;
+  color: #7be7c7; /* glowing accent */
+}
+
+@keyframes arrowPulse {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(6px); }
+}
+
+
+    /* Accessibility */
+    .collage-item { -webkit-tap-highlight-color: transparent; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="center-column">
+      <section class="memory-card" aria-labelledby="mem-title">
+        <!-- Header: title & static description (no textarea) -->
+        <header class="card-header">
+          <h1 id="mem-title" class="card-title">Your Crochete Darlo</h1>
+
+          <p class="card-desc">
+            Sadikshya, how is it even possible to be this talented? 🥹🧶
+            <br>
+            Crochet brown top, that cute little heart, unfinished project😄, mehndi-vala hands 🌿✨
+<br>
+            Cooking, art, beauty — you’re a whole universe, yaar 💖
+<br>
+            And honestly… what more is left for me to discover about you? 😄💫
+          </p>
+        </header>
+
+        <!-- Collage of 5 images (assets/images/art/pic 1.jpeg ... 5.jpeg) -->
+        <div id="collage" class="collage" aria-label="Collage of five memory photos">
+          <figure class="collage-item item-1" data-index="0" role="img" aria-label="Memory image 1">
+            <img src="assets/images/art/pic 1.jpeg" alt="Memory image 1">
+          </figure>
+
+          <figure class="collage-item item-2" data-index="1" role="img" aria-label="Memory image 2">
+            <img src="assets/images/art/2.jpeg" alt="Memory image 2">
+          </figure>
+
+          <figure class="collage-item item-3" data-index="2" role="img" aria-label="Memory image 3">
+            <img src="assets/images/art/3.jpeg" alt="Memory image 3">
+          </figure>
+
+          <figure class="collage-item item-4" data-index="3" role="img" aria-label="Memory image 4">
+            <img src="assets/images/art/4.jpeg" alt="Memory image 4">
+          </figure>
+
+          <figure class="collage-item item-5" data-index="4" role="img" aria-label="Memory image 5">
+            <img src="assets/images/art/5.jpeg" alt="Memory image 5">
+          </figure>
+        </div>
+
+        <!-- Footer small note -->
+        <div class="foot">Timi ta sachikai ekdum special chau.” 🥹💖
+         <br>
+          “Timi jasto ta koi hudaina.” ✨🫶
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    /* ============================
+       JS: pointer-based 3D tilt for collage items,
+       accessibility helpers and image error handling.
+       (Removed description autosave / textarea as requested)
+       ============================ */
+
+    (function () {
+      const collage = document.getElementById('collage');
+      const items = Array.from(collage.querySelectorAll('.collage-item'));
+
+      // Controls for the tilt/parallax strength
+      const globalStrength = 12;
+      const rotStrength = 0.06;
+
+      function handleMove(e) {
+        const rect = collage.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+
+        const px = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
+        const py = (e.touches && e.touches[0]) ? e.touches[0].clientY : e.clientY;
+
+        const nx = ((px - cx) / (rect.width / 2));
+        const ny = ((py - cy) / (rect.height / 2));
+
+        const fx = Math.max(-1, Math.min(1, nx));
+        const fy = Math.max(-1, Math.min(1, ny));
+
+        items.forEach((it, idx) => {
+          const depthFactor = 1 + (idx - (items.length/2)) * 0.12;
+          const rotateY = (fx * rotStrength * 100) * depthFactor;
+          const rotateX = (-fy * rotStrength * 70) * depthFactor;
+          const translateZ = (Math.abs((1 - Math.hypot(fx, fy))) * globalStrength * (1.0 + idx * 0.08));
+          const hoverRot = (idx - 2) * 1.2 * 0.25; // consistent gentle z rotation per layer
+
+          it.style.transform = `translateZ(${translateZ}px) rotateX(${rotateX.toFixed(3)}deg) rotateY(${rotateY.toFixed(3)}deg) rotateZ(${hoverRot.toFixed(2)}deg)`;
+          const brightness = 1 + (0.04 * (1 - Math.hypot(fx,fy)) );
+          const img = it.querySelector('img');
+          if (img) img.style.filter = `brightness(${brightness})`;
+        });
+      }
+
+      function handleLeave() {
+        items.forEach(it => {
+          it.style.transition = 'transform 0.7s cubic-bezier(.2,.9,.3,1), box-shadow 0.45s ease, filter 0.45s ease';
+          it.style.transform = '';
+          const img = it.querySelector('img');
+          if (img) img.style.filter = '';
+          setTimeout(() => {
+            it.style.transition = '';
+          }, 800);
+        });
+      }
+
+      collage.addEventListener('mousemove', handleMove, { passive: true });
+      collage.addEventListener('touchmove', handleMove, { passive: true });
+      collage.addEventListener('mouseleave', handleLeave);
+      collage.addEventListener('touchend', handleLeave);
+      collage.addEventListener('touchcancel', handleLeave);
+
+      // Keyboard focus accessibility and error handling
+      items.forEach((it, idx) => {
+        it.tabIndex = 0;
+        it.addEventListener('focus', () => { it.style.transform = 'translateZ(18px) scale(1.01)'; });
+        it.addEventListener('blur', () => { it.style.transform = ''; });
+
+        const img = it.querySelector('img');
+        if (img) {
+          img.addEventListener('error', () => {
+            it.style.background = 'linear-gradient(180deg, rgba(200,200,200,0.25), rgba(220,220,220,0.18))';
+            // optionally you could set a fallback image here:
+            // img.src = 'assets/images/placeholder.jpg';
+          });
+        }
+      });
+    })();
+  </script>
+    <!-- NEXT BUTTON -->
+  <a href="sadikshya-memories.html" class="next-btn">→ Click here Madam Jii</a>
+</body>
+</html>

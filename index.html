@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Surprise — Sadikshya</title>
+
+  <!-- three.js and GSAP CDN -->
+  <script src="https://unpkg.com/three@0.156.0/build/three.min.js"></script>
+  <script src="https://unpkg.com/three@0.156.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0f1114;
+      --panel:#1f2833;
+      --accent:#ffd166;
+      --text:#e6eef6;
+    }
+    html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;}
+    body{
+      background: linear-gradient(180deg, #0d1115 0%, #0b0d11 60%);
+      color:var(--text);
+      overflow:hidden;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+
+    /* 3D canvas container */
+    #stage{
+      position:fixed;
+      inset:0;
+      z-index:0;
+    }
+
+    /* overlay UI */
+    .ui{
+      position:relative;
+      z-index:5;
+      pointer-events:none;
+      width:100%;
+      height:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      flex-direction:column;
+      gap:18px;
+    }
+
+    .introText{
+      font-size:18px;
+      color:#a9b3c1;
+      text-shadow:0 2px 18px rgba(0,0,0,0.6);
+      opacity:0;
+      transform:translateY(8px);
+    }
+
+    /* name reveal */
+    .nameWrap{
+      pointer-events:none;
+      display:flex;
+      gap:10px;
+      align-items:center;
+      justify-content:center;
+      font-weight:700;
+      font-size: clamp(36px, 8vw, 84px);
+      letter-spacing:2px;
+      color:var(--accent);
+      text-shadow:
+        0 2px 12px rgba(0,0,0,0.6),
+        0 0 40px rgba(255,209,102,0.06);
+      opacity:0;
+      transform:translateY(20px) scale(0.98);
+      user-select:none;
+    }
+    .nameWrap .char{
+      display:inline-block;
+      transform-origin:50% 50%;
+      will-change:transform,opacity;
+      color:var(--accent);
+    }
+
+    /* button */
+    .beginBtn{
+      pointer-events:auto;
+      margin-top:6px;
+      background:linear-gradient(180deg,#ffffff10,#ffffff06);
+      color:var(--text);
+      border:1px solid rgba(255,255,255,0.06);
+      padding:12px 18px;
+      border-radius:999px;
+      font-weight:600;
+      backdrop-filter: blur(6px);
+      cursor:pointer;
+      display:flex;
+      gap:10px;
+      align-items:center;
+      box-shadow: 0 6px 30px rgba(4,6,9,0.6), inset 0 -2px 8px rgba(255,255,255,0.02);
+      transform-origin:center;
+      opacity:0;
+      transform:translateY(12px) scale(0.98);
+    }
+    .beginBtn:active{ transform:translateY(12px) scale(0.96); }
+
+    /* helper small caption */
+    .caption{
+      font-size:13px;
+      color:#93a1b8;
+      opacity:0;
+      transform:translateY(12px);
+    }
+
+    /* small instruction top */
+    .topHint{
+      position:fixed;
+      top:14px;
+      left:50%;
+      transform:translateX(-50%);
+      color:#9fb0c8;
+      font-size:13px;
+      z-index:6;
+      opacity:0.9;
+    }
+
+    /* responsive */
+    @media (max-width:520px){
+      .nameWrap{ font-size:clamp(26px, 14vw, 48px); }
+      .introText{ font-size:15px; }
+    }
+
+    /* subtle focus outlines for accessibility */
+    .beginBtn:focus{ outline:2px dashed rgba(255,209,102,0.25); outline-offset:6px; }
+  </style>
+</head>
+<body>
+  <img id="surprisePic" 
+     src="assets/images/surprise.jpg" 
+     alt="Surprise" 
+     style="
+       position:fixed; 
+       top:50%; 
+       left:50%; 
+       transform:translate(-50%, -50%) scale(0); 
+       opacity:0; 
+       z-index:10; 
+       max-width:80%; 
+       max-height:80%; 
+       border-radius:12px; 
+       box-shadow:0 12px 40px rgba(0,0,0,0.5);
+     ">
+
+  <div id="stage" aria-hidden="true"></div>
+
+  <div class="topHint">Tap/click the gate to open</div>
+
+  <div class="ui" role="region" aria-label="Surprise landing">
+    <div class="introText" id="introText">Open it, Sadikshya — let's start the journey again.</div>
+
+    <div class="nameWrap" id="nameWrap" aria-hidden="true" aria-label="Name reveal"></div>
+
+    <button class="beginBtn" id="beginBtn" aria-label="Click to begin" title="Click to Begin 🎁">🎁 Click to Begin</button>
+
+    <div class="caption" id="caption">A little surprise — click the gift to continue</div>
+  </div>
+
+  <script>
+    /***********************
+     * Scene setup (three.js)
+     ***********************/
+    const container = document.getElementById('stage');
+    const scene = new THREE.Scene();
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0x0a0b0d, 1);
+    container.appendChild(renderer.domElement);
+
+    const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.1, 1000);
+    camera.position.set(0, 1.75, 6);
+
+    // lights
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x000000, 0.6);
+    scene.add(hemi);
+    const dir = new THREE.DirectionalLight(0xffffff, 0.9);
+    dir.position.set(5, 10, 8);
+    scene.add(dir);
+
+    // subtle floor
+    const floorGeo = new THREE.PlaneGeometry(30, 30);
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0x060708, metalness:0.1, roughness:0.8 });
+    const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.rotation.x = -Math.PI/2;
+    floor.position.y = -1.8;
+    scene.add(floor);
+
+    /***********************
+     * Gate (two panels)
+     ***********************/
+    const panelGeo = new THREE.BoxGeometry(2.6, 4.2, 0.16);
+    // slightly varied material for warm tone
+    const leftMat = new THREE.MeshStandardMaterial({ color: 0x263238, metalness:0.15, roughness:0.5 });
+    const rightMat = leftMat.clone();
+
+    const leftPanel = new THREE.Mesh(panelGeo, leftMat);
+    const rightPanel = new THREE.Mesh(panelGeo, rightMat);
+
+    // pivot groups to rotate around vertical edge
+    const leftPivot = new THREE.Group();
+    leftPivot.position.set(-1.3, 0, 0);
+    leftPanel.position.set(1.3, 0, 0);
+    leftPivot.add(leftPanel);
+    scene.add(leftPivot);
+
+    const rightPivot = new THREE.Group();
+    rightPivot.position.set(1.3, 0, 0);
+    rightPanel.position.set(-1.3, 0, 0);
+    rightPivot.add(rightPanel);
+    scene.add(rightPivot);
+
+    // decorative lines on panels
+    const linesMat = new THREE.LineBasicMaterial({ color: 0x1b2630, linewidth: 1 });
+    function addPanelLines(panel, pivot, count = 6){
+      const g = new THREE.BufferGeometry();
+      const positions = [];
+      for (let i=0;i<count;i++){
+        const y = -1.8 + i*(3.6/(count-1));
+        positions.push(-1.25, y, 0.09, 1.25, y, 0.09);
+      }
+      g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      const lines = new THREE.LineSegments(g, linesMat);
+      panel.add(lines);
+    }
+    addPanelLines(leftPanel);
+    addPanelLines(rightPanel);
+
+    // small handle
+    const handleGeo = new THREE.BoxGeometry(0.06, 0.02, 0.2);
+    const handleMat = new THREE.MeshStandardMaterial({ color: 0xffd166, metalness: 0.6, roughness: 0.25 });
+    const lh = new THREE.Mesh(handleGeo, handleMat); lh.position.set(1.16, 0.0, 0.08);
+    const rh = lh.clone(); rh.position.set(-1.16, 0.0, 0.08);
+    leftPanel.add(lh);
+    rightPanel.add(rh);
+
+    /***********************
+     * Particles background
+     ***********************/
+    const particlesCount = 900;
+    const positions = new Float32Array(particlesCount * 3);
+    for (let i=0;i<particlesCount;i++){
+      positions[i*3+0] = (Math.random()-0.5) * 40;
+      positions[i*3+1] = (Math.random()-0.2) * 12;
+      positions[i*3+2] = (Math.random()-0.5) * 40;
+    }
+    const pGeo = new THREE.BufferGeometry();
+    pGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const pMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.02, opacity: 0.12, transparent:true });
+    const particles = new THREE.Points(pGeo, pMat);
+    scene.add(particles);
+
+    /***********************
+     * Small glow behind gate
+     ***********************/
+    const glowGeo = new THREE.PlaneGeometry(6, 3);
+    const glowMat = new THREE.MeshBasicMaterial({ color: 0xffd166, opacity:0.06, transparent:true, side:THREE.DoubleSide });
+    const glow = new THREE.Mesh(glowGeo, glowMat);
+    glow.position.set(0,0.2,-0.4);
+    scene.add(glow);
+
+    /***********************
+     * Interaction & Animations (GSAP)
+     ***********************/
+    const introTextEl = document.getElementById('introText');
+    const nameWrapEl = document.getElementById('nameWrap');
+    const beginBtn = document.getElementById('beginBtn');
+    const captionEl = document.getElementById('caption');
+
+    // Build name letters
+    const name = "Sadikshya";
+    nameWrapEl.innerHTML = '';
+    for (let ch of name){
+      const span = document.createElement('span');
+      span.className = 'char';
+      span.textContent = ch;
+      nameWrapEl.appendChild(span);
+    }
+    const chars = Array.from(document.querySelectorAll('.char'));
+
+    // initial states
+    leftPivot.rotation.y = 0;
+    rightPivot.rotation.y = 0;
+    beginBtn.style.opacity = 0;
+    introTextEl.style.opacity = 0;
+    captionEl.style.opacity = 0;
+
+    // timeline orchestration
+    const tl = gsap.timeline({ defaults:{ease: "power3.out"} });
+
+    // stage: small camera float + particle subtle drift
+    tl.to(camera.position, { z: 5.2, duration: 1.2, ease: "power2.inOut" }, 0);
+    tl.to(glow.material, { opacity: 0.08, duration: 1.2 }, 0);
+
+    // show the top intro text (soft)
+    tl.to(introTextEl, { opacity: 1, y: 0, duration: 0.9 }, 0.6);
+
+    // wait for user: allow click on canvas to open gate OR auto open after 3.8s
+    let opened = false;
+    function openGate(auto=false){
+      if (opened) return;
+      opened = true;
+      // speak line
+      speakText("Open it, Sadikshya. Let's start the journey again.");
+
+      const openTl = gsap.timeline();
+      // gate opens (rotation around vertical edges)
+      openTl.to(leftPivot.rotation, { y: Math.PI/1.9, duration: 1.45, ease:"power4.inOut" }, 0);
+      openTl.to(rightPivot.rotation, { y: -Math.PI/1.9, duration: 1.45, ease:"power4.inOut" }, 0);
+
+      // camera zoom slightly in while panels open
+      openTl.to(camera.position, { z: 4.0, duration: 1.6, ease:"power2.inOut" }, 0);
+
+      // brighten glow inside
+      openTl.to(glow.material, { opacity: 0.26, duration: 1.2, ease:"power2.out" }, 0.15);
+
+      // name reveal after panels partially open
+      openTl.to(introTextEl, { opacity: 0, duration: 0.6 }, 0.9);
+      openTl.to(nameWrapEl, { opacity: 1, y: 0, scale:1, duration: 0.8 }, 1.05);
+
+      // stagger each letter 3D pop
+      chars.forEach((c,i)=>{
+        openTl.fromTo(c, { y: 28, rotationX: -0.3, opacity:0, scale: 0.9 },
+                            { y:0, rotationX:0, opacity:1, scale:1, duration:0.8, ease:"back.out(1.5)" }, 1.05 + i*0.05);
+      });
+
+      // show button & caption
+      openTl.to(beginBtn, { opacity: 1, y:0, scale:1, duration: 0.8, ease:"elastic.out(1,0.6)" }, 1.85);
+      openTl.to(captionEl, { opacity:1, y:0, duration:0.8 }, 1.95);
+
+      // subtle particle acceleration
+      openTl.to(particles.rotation, { y: 0.12, duration: 2.0 }, 0.6);
+
+      // small pulse on begin button
+      openTl.call(()=>pulseButton(), null, 2.2);
+    }
+
+    // click/tap open
+    renderer.domElement.style.cursor = 'pointer';
+    renderer.domElement.addEventListener('pointerdown', () => openGate(false), {passive:true});
+    // also allow keyboard (Enter/Space) to open
+    window.addEventListener('keydown', (e)=>{
+      if ((e.code==='Space' || e.code==='Enter') && !opened) { openGate(false); }
+    });
+
+    // auto-open after 3.6 seconds (if user doesn't click)
+    const autoOpenDelay = 3600;
+    const autoOpenTimer = setTimeout(()=>openGate(true), autoOpenDelay);
+
+    // begin button action
+    beginBtn.addEventListener('click', (e)=>{
+  e.stopPropagation();
+
+  // Animate gate panels and camera
+  gsap.to([leftPivot.rotation, rightPivot.rotation], { 
+      y: Math.sign(1)*Math.PI*2, 
+      duration: 1.6, 
+      ease: "power4.in" 
+  });
+  gsap.to(camera.position, { 
+      z: 9.5, 
+      duration: 1.6, 
+      ease: "power2.in" 
+  });
+
+  // Fade UI and particles
+  gsap.to('.ui', { autoAlpha:0, duration:1.0 });
+  gsap.to(particles.material, { opacity: 0.28, duration: 0.35, yoyo:true, repeat:3 });
+
+  // Animate the surprise image
+  const img = document.getElementById('surprisePic');
+  gsap.to(img, { 
+      opacity: 1, 
+      scale: 1, 
+      duration: 1.2, 
+      ease: "back.out(1.7)",
+      onComplete: () => {
+          // Keep image for 2 seconds before redirect
+          setTimeout(()=> {
+              location.href = 'memories.html';
+          }, 2000); // 2000ms = 2 seconds
+      }
+  });
+});
+
+
+
+    function pulseButton(){
+      gsap.to(beginBtn, { scale:1.06, boxShadow:"0 12px 40px rgba(0,0,0,0.6)", duration:0.6, yoyo:true, repeat:1, ease:"sine.inOut" });
+    }
+
+    /***********************
+     * TTS helper (Web Speech)
+     ***********************/
+    function speakText(text){
+      if (!("speechSynthesis" in window)) return;
+      const u = new SpeechSynthesisUtterance(text);
+      // pick a slower, warm voice where available
+      u.rate = 0.95;
+      u.pitch = 1.02;
+      // voice selection: try to pick a female english voice
+      const voices = speechSynthesis.getVoices();
+      if (voices && voices.length){
+        const v = voices.find(v=>/female|zira|samantha|amelia|alloy/i.test(v.name)) || voices.find(v=>/en[-_]?/i.test(v.lang)) || voices[0];
+        if (v) u.voice = v;
+      }
+      // speak with small delay so it matches the gate opening
+      setTimeout(()=> speechSynthesis.speak(u), 120);
+    }
+
+    /***********************
+     * Render loop
+     ***********************/
+    const clock = new THREE.Clock();
+    function animate(){
+      const t = clock.getElapsedTime();
+      // subtle ambient animations
+      particles.rotation.y += 0.0006;
+      particles.position.y = Math.sin(t*0.35) * 0.08;
+      // floating camera micro-movement
+      camera.position.x = Math.sin(t*0.2) * 0.06;
+      camera.position.y = 1.75 + Math.sin(t*0.15) * 0.04;
+      camera.lookAt(0,0,0);
+
+      // slow glow breathing
+      glow.material.opacity = 0.06 + Math.abs(Math.sin(t*0.7))*0.12;
+
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    }
+    animate();
+
+    /***********************
+     * Resize handling
+     ***********************/
+    window.addEventListener('resize', onResize);
+    function onResize(){
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth/window.innerHeight;
+      camera.updateProjectionMatrix();
+    }
+
+    /***********************
+     * Accessibility & initial hints
+     ***********************/
+    // show "Click to open" hint as subtle animation
+    gsap.fromTo('.topHint', { y:-6, opacity:0.4 }, { y:0, opacity:0.9, duration:1.2, ease:"sine.inOut", repeat:-1, yoyo:true });
+
+    // Ensure voices are loaded in some browsers
+    window.speechSynthesis.onvoiceschanged = ()=>{ /* no-op, helps populate voices */ };
+
+    // Expose a global hook to programmatically open
+    window.openSurpriseGate = openGate;
+
+    // Allow focus on beginBtn for keyboard users
+    beginBtn.tabIndex = 0;
+
+    // small safety: cancel auto open if user interacts with UI (they clicked)
+    document.addEventListener('pointerdown', ()=> clearTimeout(autoOpenTimer), {once:true});
+
+  </script>
+</body>
+</html>

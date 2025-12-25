@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Every Beat Has You — Sadikshya Memories</title>
+
+  <!--
+    Every Beat Has You — Sadikshya Memories
+    - Single-file HTML/CSS/JS
+    - Intimate, dreamy scrapbook mood
+    - Dark memory card (#1e1e28 → #32323c) with light text (#f5f5f5)
+    - Animated page background (slow rainbow shift) + floating hearts
+    - 7 photos arranged in an ARC/HEART flow
+    - Photos are separated (no overlap), scale to fill, never cropped (object-fit: contain)
+    - Hover: zoom, lift, slight rotate; click/keyboard triggers pulse
+    - Responsive: images larger on desktop, spaced on tablet/mobile
+    - Semantic structure: header, main, figure, figcaption
+  -->
+
+  <style>
+    .portal-btn {
+  position: fixed;
+  bottom: 40px;
+  left: 40px;
+  padding: 18px 36px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 50px;
+  background: linear-gradient(135deg, #1e1e2f, #2a2a3f);
+  box-shadow: 0 0 24px rgba(0,0,0,0.6), 0 8px 28px rgba(0,0,0,0.8);
+  overflow: hidden;
+  z-index: 999;
+  cursor: pointer;
+  animation: portalGlow 3s ease-in-out infinite alternate, portalBounce 2.5s ease-in-out infinite;
+  transition: all 0.25s ease;
+}
+
+/* Hover effect */
+.portal-btn:hover {
+  transform: translateY(-4px) scale(1.05) rotate(-1deg);
+  box-shadow: 0 0 36px rgba(123,231,199,0.8), 0 12px 36px rgba(0,0,0,0.9);
+}
+
+/* Floating bounce animation */
+@keyframes portalBounce {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-6px) scale(1.03); }
+  100% { transform: translateY(0); }
+}
+
+/* Gradient glow animation */
+@keyframes portalGlow {
+  0% { background-position: 0% 0%; }
+  50% { background-position: 100% 100%; }
+  100% { background-position: 0% 0%; }
+}
+
+/* Optional floating particle effect */
+.portal-btn::before {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255,255,255,0.1) 2%, transparent 10%);
+  animation: particles 6s linear infinite;
+  pointer-events: none;
+  border-radius: 50%;
+}
+
+@keyframes particles {
+  0% { transform: translate(0,0) rotate(0deg); }
+  50% { transform: translate(10%, -10%) rotate(180deg); }
+  100% { transform: translate(0,0) rotate(360deg); }
+}
+
+    /* ===========================
+       Variables & Base
+       =========================== */
+    :root{
+      --card-dark-1: #1e1e28;
+      --card-dark-2: #32323c;
+      --card-text: #f5f5f5;
+      --accent: #ff7aa9;
+      --muted: rgba(245,245,245,0.75);
+
+      /* photo size uses clamp so it grows on large screens and shrinks on mobile.
+         This keeps the pieces from overlapping while still filling screen. */
+      --photo-size: clamp(140px, 16.5vw, 320px);
+      --photo-height-ratio: 1.25; /* height = width * ratio */
+
+      --card-radius: 22px;
+      --card-padding: 44px;
+      --stage-max: 1400px;
+      --shadow-strong: 0 32px 88px rgba(6,6,10,0.6);
+      --soft-shadow: 0 12px 36px rgba(0,0,0,0.45);
+    }
+
+    * { box-sizing: border-box; }
+    html,body { height:100%; margin:0; }
+    body {
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      margin:0;
+      color:var(--card-text);
+      display:flex;
+      justify-content:center;
+      align-items:flex-start;
+      padding:56px 20px 120px;
+      min-height:100vh;
+      background: linear-gradient(180deg,#08051a 0%, #071428 50%, #041323 100%);
+      overflow-y:auto; /* allow scrolling */
+    }
+
+    /* ---------------------------
+       Animated rainbow overlay
+       --------------------------- */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: -20%;
+      z-index: -3;
+      background: conic-gradient(from 180deg, rgba(255,128,180,0.06), rgba(120,160,255,0.06), rgba(120,240,200,0.05), rgba(255,200,120,0.05));
+      filter: blur(60px) contrast(.98) saturate(.9);
+      animation: slowSpin 28s linear infinite;
+      pointer-events:none;
+    }
+    @keyframes slowSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+    /* floating hearts layer */
+    .hearts { position: fixed; inset:0; z-index:-2; pointer-events:none; }
+
+    /* gentle page heartbeat */
+    @keyframes pagePulse {
+      0% { filter:brightness(1) scale(1); }
+      45% { filter:brightness(1.02) scale(1.002); }
+      60% { filter:brightness(1.03) scale(1.004); }
+      100% { filter:brightness(1) scale(1); }
+    }
+    body.heartbeat-active { animation: pagePulse 2.4s ease-in-out infinite; }
+
+    /* ===========================
+       Stage & memory card (dark)
+       =========================== */
+    .stage {
+      width: min(var(--stage-max), 1100px);
+      margin: 0 auto;
+      display:flex;
+      flex-direction:column;
+      gap:20px;
+      align-items:center;
+      z-index:1;
+    }
+
+    main.memory-card {
+      width:100%;
+      max-width:var(--stage-max);
+      background: linear-gradient(180deg, var(--card-dark-1), var(--card-dark-2));
+      color: var(--card-text);
+      border-radius: var(--card-radius);
+      padding: var(--card-padding);
+      box-shadow: var(--shadow-strong);
+      position: relative;
+      overflow: visible;
+      transition: transform .28s ease, box-shadow .28s ease;
+    }
+    main.memory-card:hover { transform: translateY(-6px); }
+
+    /* heartbeat ring around card */
+    main.memory-card::after {
+      content:"";
+      position:absolute;
+      inset:7%;
+      border-radius:18%;
+      pointer-events:none;
+      background: radial-gradient(circle at 50% 40%, rgba(255,90,140,0.06), transparent 34%);
+      filter: blur(12px);
+      opacity:0.95;
+      z-index:0;
+    }
+    @keyframes cardPulse {
+      0% { transform: scale(1); opacity: .96; }
+      30% { transform: scale(1.02); opacity: 1; }
+      50% { transform: scale(1); opacity: .98; }
+    }
+    main.memory-card.heartbeat-ring::after { animation: cardPulse 1.6s ease-in-out infinite; }
+
+    /* header */
+    header.mem-head { position: relative; z-index:4; text-align:center; margin-bottom:14px; }
+    h1.title {
+      margin:0;
+      font-size: clamp(1.6rem, 4.2vw, 3.2rem);
+      line-height:1.02;
+      letter-spacing:-0.02em;
+      text-shadow: 0 6px 30px rgba(0,0,0,0.6);
+    }
+    p.lead {
+      margin: 10px auto 0;
+      max-width: 880px;
+      color: var(--muted);
+      font-size: clamp(.95rem, 1.6vw, 1.05rem);
+      line-height:1.45;
+    }
+
+    /* ===========================
+       Photo area: non-overlapping arc
+       - Use evenly spaced horizontal positions and an arc-shaped top offsets
+       - Sizes scale with --photo-size so pieces never overlap
+       =========================== */
+    .photo-stage {
+      position: relative;
+      width: 100%;
+      /* set enough vertical space to fit the pieces */
+      padding-top: calc(var(--photo-size) * var(--photo-height-ratio) + 80px);
+      min-height: calc(var(--photo-size) * var(--photo-height-ratio) + 80px);
+      z-index:3;
+      margin-top:18px;
+    }
+
+    .photo-wrap {
+      position: absolute;
+      inset: 0;
+      display: block;
+      pointer-events: auto;
+    }
+
+    /* piece card */
+    .piece {
+      --rot: 0deg;
+      position: absolute;
+      width: var(--photo-size);
+      height: calc(var(--photo-size) * var(--photo-height-ratio));
+      border-radius: 14px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(250,250,250,0.96));
+      box-shadow: var(--soft-shadow), 0 8px 24px rgba(0,0,0,0.55);
+      transform-origin: center center;
+      transition: transform .45s cubic-bezier(.2,.9,.3,1), box-shadow .35s ease;
+      z-index: 10;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      border: 1px solid rgba(255,255,255,0.06);
+      cursor: pointer;
+    }
+
+    /* image (contain so not cropped) */
+    .piece .img {
+      width: calc(100% - 20px);
+      height: calc(100% - 20px);
+      object-fit: contain;
+      border-radius:10px;
+      display:block;
+      margin:10px;
+      transition: transform .6s cubic-bezier(.2,.9,.2,1), filter .45s ease;
+      box-shadow: 0 8px 22px rgba(0,0,0,0.5);
+      pointer-events:none;
+      background: linear-gradient(180deg,#fff,#fafafa);
+    }
+
+    /* stitched overlay & small tag */
+    .piece .stitched {
+      position:absolute;
+      top:8px;
+      left:12px;
+      right:12px;
+      height:8px;
+      border-radius:6px;
+      opacity:0.24;
+      transform: rotate(-2deg);
+      background: repeating-linear-gradient(90deg, rgba(255,255,255,0.02) 0 3px, rgba(0,0,0,0.03) 3px 6px);
+      pointer-events:none;
+      z-index:4;
+    }
+    .piece .tag {
+      position:absolute;
+      bottom:10px;
+      left:12px;
+      padding:6px 9px;
+      font-size:0.86rem;
+      border-radius:8px;
+      background: rgba(0,0,0,0.45);
+      color:var(--card-text);
+      z-index:5;
+      pointer-events:none;
+      box-shadow: 0 6px 14px rgba(0,0,0,0.5);
+    }
+
+    /* hover: lift + rotate + scale */
+    .piece:hover {
+      transform: translateY(-18px) rotate(var(--rot)) scale(1.05);
+      box-shadow: 0 36px 96px rgba(0,0,0,0.7);
+      z-index: 80;
+    }
+    .piece:hover .img { transform: scale(1.07); filter: saturate(1.04) contrast(1.02); }
+
+    /* click pulse */
+    .piece.pulse { animation: piecePulse .48s cubic-bezier(.2,.9,.2,1); }
+    @keyframes piecePulse {
+      0% { transform: translateY(-8px) scale(1.02); }
+      40% { transform: translateY(-22px) scale(1.12); }
+      100% { transform: translateY(-14px) scale(1.06); }
+    }
+
+    /* ===========================
+       ARC positions (non-overlapping)
+       - Horizontal positions spread evenly; top offsets make an arc
+       - Values tuned so pieces do not overlap even at largest size
+       =========================== */
+    /* Desktop/wide layout */
+    .p1 { left: 3%;  top: 34%;  --rot: -6deg; }
+    .p2 { left: 17%; top: 18%;  --rot: -4deg; }
+    .p3 { left: 31%; top: 10%;  --rot: -2deg; }
+    .p4 { left: 45%; top: 12%;  --rot: 0deg;  }
+    .p5 { left: 59%; top: 18%;  --rot: 3deg;  }
+    .p6 { left: 73%; top: 30%;  --rot: 4deg;  }
+    .p7 { left: 86%; top: 46%;  --rot: -3deg; }
+
+    /* tablet adjustments (slightly smaller, still separated) */
+    @media (max-width: 999px) and (min-width: 640px) {
+      :root { --photo-size: clamp(140px, 18vw, 260px); }
+      .photo-stage { padding-top: calc(var(--photo-size) * var(--photo-height-ratio) + 60px); }
+      .p1 { left: 4%; top: 34%; }
+      .p2 { left: 18%; top: 20%; }
+      .p3 { left: 32%; top: 12%; }
+      .p4 { left: 48%; top: 14%; }
+      .p5 { left: 62%; top: 20%; }
+      .p6 { left: 76%; top: 34%; }
+      .p7 { left: 88%; top: 50%; }
+    }
+
+    /* mobile: stack more vertically, keep separation, reduce size */
+    @media (max-width: 639px) {
+      :root { --photo-size: clamp(120px, 30vw, 160px); }
+      .photo-stage { padding-top: calc(var(--photo-size) * var(--photo-height-ratio) + 120px); }
+      .p1 { left: 4%;  top: 10%; }
+      .p2 { left: 20%; top: 22%; }
+      .p3 { left: 36%; top: 8%; }
+      .p4 { left: 52%; top: 16%; }
+      .p5 { left: 68%; top: 30%; }
+      .p6 { left: 84%; top: 50%; }
+      .p7 { left: 4%;  top: 66%; } /* move last to next column bottom to avoid overlap */
+    }
+
+    /* floating animation; slight offsets so motion feels natural */
+    .piece { animation: floatNudge 6.6s ease-in-out infinite; }
+    @keyframes floatNudge {
+      0% { transform: translateY(0) rotate(var(--rot)) scale(1); }
+      25% { transform: translateY(-6px) rotate(calc(var(--rot) + .6deg)) scale(1.002); }
+      50% { transform: translateY(0) rotate(calc(var(--rot) - .4deg)) scale(1); }
+      75% { transform: translateY(4px) rotate(calc(var(--rot) + .2deg)) scale(.998); }
+      100% { transform: translateY(0) rotate(var(--rot)) scale(1); }
+    }
+    .p2 { animation-delay:.08s; } .p3 { animation-delay:.16s; } .p4 { animation-delay:.24s; }
+    .p5 { animation-delay:.12s; } .p6 { animation-delay:.04s; } .p7 { animation-delay:.18s; }
+
+    /* entry */
+    main.memory-card { opacity:0; transform: translateY(24px); animation: cardIn .9s ease forwards; }
+    @keyframes cardIn { to { opacity:1; transform: translateY(0);} }
+
+    /* hearts (positioned by JS) */
+    .heart { position:absolute; will-change: transform, opacity; pointer-events:none; }
+
+    /* accessibility focus */
+    .piece:focus { outline: 3px solid rgba(255,120,153,0.12); outline-offset:6px; z-index:95; transform: translateY(-18px) rotate(var(--rot)) scale(1.05); }
+
+    /* small note */
+    .note { margin-top:18px; color: rgba(245,245,245,0.64); text-align:center; font-size:.95rem; }
+  </style>
+</head>
+<body>
+  <a href="sadii.html" class="portal-btn" aria-label="Enter next memory">Enter the Next Memory</a>
+
+  <div class="hearts" aria-hidden="true"></div>
+
+  <div class="stage" role="main" aria-labelledby="page-title">
+    <main class="memory-card heartbeat-ring" aria-labelledby="page-title">
+      <header class="mem-head">
+        <h1 id="page-title" class="title">Every Beat Has You</h1>
+        <p class="lead">Sadikshya that day kbhi bhul he nhi skta yaar that was unexpected. yaad hai ? you showed me every kind of make up material you have in your home yr......... what a day that.
+haha I was surprised because first time any girl showing his kit and all personally to me how special I felt that day.
+Love you buddy......</p>
+      </header>
+
+      <section class="photo-stage" aria-label="Sadikshya memories — photos">
+        <div class="photo-wrap" id="photoWrap">
+          <figure class="piece p1" data-index="1" tabindex="0" role="button" aria-label="Photo 1 — Glam Squad Ready 💄✨🫶">
+            <div class="stitched" aria-hidden="true"></div>
+            <img class="img" src="assets/images/sadikshya/1.jpeg" alt="Sadikshya memory 1">
+            <figcaption class="tag">01 • Glam Squad Ready 💄✨🫶</figcaption>
+          </figure>
+
+          <figure class="piece p2" data-index="2" tabindex="0" role="button" aria-label="Photo 2 — Smokey Eyes Vibes 👁️🔥😉">
+            <div class="stitched" aria-hidden="true"></div>
+            <img class="img" src="assets/images/sadikshya/2.jpeg" alt="Sadikshya memory 2">
+            <figcaption class="tag">02 • Smokey Eyes Vibes 👁️🔥😉</figcaption>
+          </figure>
+
+          <figure class="piece p3" data-index="3" tabindex="0" role="button" aria-label="Photo 3 — Brush Babes 🖌️💫😆">
+            <div class="stitched" aria-hidden="true"></div>
+            <img class="img" src="assets/images/sadikshya/3.jpeg" alt="Sadikshya memory 3">
+            <figcaption class="tag">03 • Brush Babes 🖌️💫😆</figcaption>
+          </figure>
+
+          <figure class="piece p4" data-index="4" tabindex="0" role="button" aria-label="Photo 4 — Lip Love 💋💖">
+            <div class="stitched" aria-hidden="true"></div>
+            <img class="img" src="assets/images/sadikshya/4.jpeg" alt="Sadikshya memory 4">
+            <figcaption class="tag">04 • Lip Love 💋💖</figcaption>
+          </figure>
+
+          <figure class="piece p5" data-index="5" tabindex="0" role="button" aria-label="Photo 5 — Little Wonders">
+            <div class="stitched" aria-hidden="true"></div>
+            <img class="img" src="assets/images/sadikshya/5.jpeg" alt="Sadikshya memory 5">
+            <figcaption class="tag">05 • Little Wonders</figcaption>
+          </figure>
+
+          <figure class="piece p6" data-index="6" tabindex="0" role="button" aria-label="Photo 6 — Soft Touch 💛">
+            <div class="stitched" aria-hidden="true"></div>
+            <img class="img" src="assets/images/sadikshya/6.jpeg" alt="Sadikshya memory 6">
+            <figcaption class="tag">06 • Soft Touch 💛</figcaption>
+          </figure>
+
+          <figure class="piece p7" data-index="7" tabindex="0" role="button" aria-label="Photo 7 — Beauty Wonderland ✨🫧">
+            <div class="stitched" aria-hidden="true"></div>
+            <img class="img" src="assets/images/sadikshya/7.jpeg" alt="Sadikshya memory 7">
+            <figcaption class="tag">07 • Beauty Wonderland ✨🫧</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <p class="note">Sadi click krke dekh</p>
+    </main>
+  </div>
+
+  <script>
+    (function () {
+      // Activate subtle heartbeat on body and card
+      window.addEventListener('load', () => {
+        setTimeout(() => document.body.classList.add('heartbeat-active'), 360);
+        setTimeout(() => {
+          const card = document.querySelector('main.memory-card');
+          if (card) card.classList.add('heartbeat-ring');
+        }, 760);
+      });
+
+      // Hearts background generator
+      const heartsContainer = document.querySelector('.hearts');
+      function heartSVG(color) {
+        return `<svg viewBox="0 0 24 24" fill="${color}" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M12 21s-7.5-4.73-10.2-7.12A6.4 6.4 0 011 8.5 5.5 5.5 0 016.5 3 6 6 0 0112 6.5 6 6 0 0117.5 3 5.5 5.5 0 0123 8.5c0 2.45-1.3 4.54-3.8 5.88C19.4 16.27 12 21 12 21z"/>
+        </svg>`;
+      }
+      function spawnHearts(count = 20) {
+        for (let i=0;i<count;i++) {
+          const el = document.createElement('div');
+          el.className = 'heart';
+          const left = Math.random()*100;
+          const top = Math.random()*100;
+          el.style.left = left + '%';
+          el.style.top = top + '%';
+          const size = 6 + Math.random()*36;
+          el.style.width = size + 'px';
+          el.style.height = size + 'px';
+          const opacity = 0.02 + Math.random()*0.12;
+          el.style.opacity = opacity;
+          el.style.position = 'absolute';
+          el.innerHTML = heartSVG(`rgba(255,130,165,${0.6 + Math.random()*0.4})`);
+          heartsContainer.appendChild(el);
+
+          const duration = 10 + Math.random()*20;
+          const delay = Math.random()*6;
+          const amplitudeX = (Math.random()*200)-100;
+          el.animate([
+            { transform: 'translateY(0) translateX(0) scale(0.8)', opacity: opacity },
+            { transform: `translateY(${ -20 - Math.random()*80 }px) translateX(${amplitudeX}px) scale(1.05)`, opacity: opacity*0.9 },
+            { transform: `translateY(${ 20 + Math.random()*100 }px) translateX(${ amplitudeX*0.45 }px) scale(0.7)`, opacity: 0 }
+          ], {
+            duration: duration*1000,
+            iterations: Infinity,
+            direction: Math.random()>0.5 ? 'normal' : 'reverse',
+            easing: 'ease-in-out',
+            delay: delay*1000
+          });
+        }
+      }
+      spawnHearts(20);
+
+      // Piece interactions: tilt & parallax, click pulse, keyboard nav
+      const wrap = document.getElementById('photoWrap');
+      const pieces = Array.from(wrap.querySelectorAll('.piece'));
+      const card = document.querySelector('main.memory-card');
+
+      // Ensure images are non-draggable and provide fallback
+      document.querySelectorAll('.img').forEach(img => {
+        img.draggable = false;
+        img.addEventListener('error', () => {
+          img.style.background = 'linear-gradient(180deg,#2a2230,#3a3240)';
+          img.alt = 'Image not available';
+        });
+      });
+
+      // Pointer tilt: subtle, but pieces remain separated
+      function handleMove(e) {
+        const rect = wrap.getBoundingClientRect();
+        const cx = rect.left + rect.width/2;
+        const cy = rect.top + rect.height/2;
+        const clientX = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
+        const clientY = (e.touches && e.touches[0]) ? e.touches[0].clientY : e.clientY;
+        const nx = (clientX - cx) / (rect.width/2); // -1..1
+        const ny = (clientY - cy) / (rect.height/2);
+
+        pieces.forEach((el, idx) => {
+          // smaller factor, keep transforms subtle so pieces don't overlap
+          const depth = (idx - pieces.length/2) * 0.08;
+          const rotateY = (nx * 5 * (1 + depth)).toFixed(2);
+          const rotateX = (-ny * 4 * (1 + depth)).toFixed(2);
+          const tz = ( (1 - Math.hypot(nx, ny)) * 10 * (1 + depth) ).toFixed(1);
+          el.style.transform = `translateZ(${tz}px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) rotateZ(var(--rot))`;
+        });
+      }
+      function handleLeave() {
+        pieces.forEach(el => {
+          el.style.transition = 'transform 700ms cubic-bezier(.2,.9,.3,1)';
+          el.style.transform = `rotateZ(var(--rot))`;
+        });
+        setTimeout(()=> pieces.forEach(el => el.style.transition = ''), 750);
+      }
+      wrap.addEventListener('mousemove', handleMove, { passive:true });
+      wrap.addEventListener('touchmove', handleMove, { passive:true });
+      wrap.addEventListener('mouseleave', handleLeave);
+      wrap.addEventListener('touchend', handleLeave);
+      wrap.addEventListener('touchcancel', handleLeave);
+
+      // Click / keyboard pulse
+      function triggerPulse(piece) {
+        // piece pulse
+        piece.classList.remove('pulse');
+        void piece.offsetWidth; // restart animation
+        piece.classList.add('pulse');
+
+        // card glow pulse
+        if (card) {
+          card.animate([
+            { boxShadow: '0 26px 96px rgba(255,100,150,0.06)' },
+            { boxShadow: '0 46px 140px rgba(255,100,150,0.12)' },
+            { boxShadow: '0 26px 96px rgba(255,100,150,0.06)' }
+          ], { duration: 520, easing: 'ease-out' });
+        }
+
+        // halo
+        const halo = document.createElement('div');
+        halo.style.position = 'absolute';
+        halo.style.inset = '-6px';
+        halo.style.borderRadius = '14px';
+        halo.style.pointerEvents = 'none';
+        halo.style.zIndex = 200;
+        halo.style.boxShadow = '0 0 0 0 rgba(255,120,150,0.14)';
+        piece.appendChild(halo);
+        halo.animate([
+          { boxShadow: '0 0 0 0 rgba(255,120,150,0.14)', opacity:1 },
+          { boxShadow: '0 0 40px 18px rgba(255,120,150,0.08)', opacity:0.9 },
+          { boxShadow: '0 0 80px 36px rgba(255,120,150,0.02)', opacity:0 }
+        ], { duration: 720, easing:'cubic-bezier(.2,.9,.2,1)' });
+        setTimeout(()=> halo.remove(), 760);
+      }
+
+      pieces.forEach((p, i) => {
+        p.addEventListener('click', () => triggerPulse(p));
+        p.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Enter' || ev.key === ' ' || ev.key === 'Spacebar') {
+            ev.preventDefault();
+            p.click();
+          } else if (ev.key === 'ArrowRight' || ev.key === 'Right') {
+            ev.preventDefault();
+            pieces[(i+1) % pieces.length].focus();
+          } else if (ev.key === 'ArrowLeft' || ev.key === 'Left') {
+            ev.preventDefault();
+            pieces[(i-1+pieces.length) % pieces.length].focus();
+          }
+        });
+      });
+
+      // Accessibility: ensure pieces announce themselves as buttons
+      pieces.forEach(p => {
+        p.setAttribute('role', 'button');
+        p.setAttribute('aria-pressed','false');
+      });
+
+      // Minor responsiveness improvement: if viewport is very wide, increase spacing
+      function updateSpacing() {
+        // optionally could compute and set dynamically; CSS clamp handles most cases
+      }
+      window.addEventListener('resize', updateSpacing);
+      updateSpacing();
+    })();
+  </script>
+</body>
+</html>

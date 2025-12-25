@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Memories🫂🫶 — Photo Grid</title>
+
+  <!--
+    Memories page
+    - 10 photo cards in a responsive grid
+    - Rounded corners, soft shadow, animated gradient border
+    - Hover zoom + glow
+    - Editable captions (auto-saved to localStorage)
+    - Replace placeholder images by changing the src attributes below
+  -->
+
+  <style>
+    
+    /* -------------------------
+       Variables / Base styles
+       ------------------------- */
+    :root{
+      --bg: #0f0f12;
+      --card-bg: rgba(255,255,255,0.03);
+      --glass: rgba(255,255,255,0.04);
+      --text: #f7f7f9;
+      --muted: #c7c7d0;
+      --accent-1: #ff8ba7;
+      --accent-2: #7be7c7;
+      --accent-3: #9ad0ff;
+      --border-thickness: 3px;
+      --card-radius: 14px;
+      --shadow: 0 8px 30px rgba(2,6,23,0.6);
+      --container-max: 1200px;
+    }
+
+    /* Modern, clean typography using system fonts (no external fonts required) */
+    html,body{
+      height:100%;
+      margin:0;
+      background: linear-gradient(180deg, #07070a 0%, #0f0f12 60%);
+      color:var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      line-height:1.35;
+      -webkit-text-size-adjust:100%;
+    }
+
+    /* Page container */
+    .page {
+      max-width: var(--container-max);
+      margin: 48px auto;
+      padding: 0 20px 80px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+
+    header h1 {
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin: 0;
+      font-size: 2.2rem;
+      color: #fff;
+      text-shadow: 0 4px 18px rgba(0,0,0,0.6);
+    }
+
+    header p.lead {
+      margin: 8px auto 0;
+      color: var(--muted);
+      max-width: 760px;
+      font-size: 1rem;
+    }
+
+    /* -------------------------
+       Grid layout
+       ------------------------- */
+    .memories-grid {
+      display: grid;
+      gap: 20px; /* Maintain spacing between cards */
+      align-items: start;
+    }
+
+    /* Responsive columns:
+       - Mobile: 1 column
+       - Tablet: 2 columns
+       - Desktop medium: 3 columns
+       - Desktop wide: 4 columns
+    */
+    @media (max-width: 599px) {
+      .memories-grid { grid-template-columns: 1fr; }
+    }
+    @media (min-width: 600px) and (max-width: 899px) {
+      .memories-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (min-width: 900px) and (max-width: 1199px) {
+      .memories-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (min-width: 1200px) {
+      .memories-grid { grid-template-columns: repeat(4, 1fr); }
+    }
+
+    /* -------------------------
+       Card styling with animated gradient border
+       ------------------------- */
+    .memory-card {
+      position: relative;
+      /* space for animated border (using a pseudo-element) */
+      padding: calc(var(--border-thickness) + 6px);
+      border-radius: calc(var(--card-radius) + var(--border-thickness));
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      box-shadow: var(--shadow);
+      transition: transform 0.25s ease;
+      overflow: visible;
+      isolation: isolate; /* keep the pseudo-element separate */
+    }
+
+    /* Animated gradient ring using pseudo-element */
+    .memory-card::before{
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: calc(var(--card-radius) + var(--border-thickness));
+      padding: var(--border-thickness);
+      -webkit-mask: 
+        linear-gradient(#fff,#fff) content-box, 
+        linear-gradient(#fff,#fff);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+      z-index: 0;
+      /* create animated conic gradient */
+      background: conic-gradient(from 0deg, var(--accent-1), var(--accent-2), var(--accent-3), var(--accent-1));
+      filter: blur(6px) saturate(1.05);
+      opacity: 0.9;
+      animation: rotateGrad 6s linear infinite;
+      transition: filter 0.25s ease, opacity 0.25s ease;
+    }
+
+    @keyframes rotateGrad {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+
+    /* Card inner content sits above the gradient ring */
+    .card-inner {
+      position: relative;
+      background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02));
+      border-radius: var(--card-radius);
+      overflow: hidden;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 100%;
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+      border: 1px solid rgba(255,255,255,0.03);
+    }
+
+    /* Slight lift on hover */
+    .memory-card:hover .card-inner {
+      transform: translateY(-6px);
+      box-shadow: 0 18px 40px rgba(2,6,23,0.7);
+    }
+
+    /* Glow the gradient on hover */
+    .memory-card:hover::before {
+      filter: blur(10px) saturate(1.1);
+      opacity: 1;
+    }
+
+    /* Image container to preserve aspect ratio and cropping */
+    .photo-wrap {
+      width: 100%;
+      aspect-ratio: 4/3; /* consistent look */
+      overflow: hidden;
+      display:block;
+      position: relative;
+      background: linear-gradient(180deg, rgba(0,0,0,0.18), rgba(0,0,0,0.05));
+    }
+
+    .photo-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      transition: transform 0.55s cubic-bezier(.2,.9,.2,1);
+      transform-origin: center center;
+      will-change: transform;
+    }
+
+    /* Slight zoom on hover */
+    .card-inner:hover .photo-wrap img {
+      transform: scale(1.06);
+      filter: contrast(1.02);
+    }
+
+    /* Card content: title and caption */
+    .card-content {
+      padding: 14px 14px 18px 14px;
+      display:flex;
+      gap: 10px;
+      flex-direction: column;
+    }
+
+    .memory-title {
+      margin: 0;
+      font-size: 1.02rem;
+      font-weight: 600;
+      color: #fff;
+      letter-spacing: -0.01em;
+    }
+
+    .memory-caption {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    /* Editable caption area (textarea styled to look like an inline caption) */
+    .caption-edit {
+      width: 100%;
+      min-height: 66px;
+      max-height: 220px;
+      resize: vertical;
+      background: linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.01));
+      border: 1px solid rgba(255,255,255,0.03);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-family: inherit;
+      font-size: 0.95rem;
+      line-height: 1.35;
+      outline: none;
+      transition: box-shadow 0.18s ease, border-color 0.18s ease;
+    }
+
+    .caption-edit:focus {
+      box-shadow: 0 4px 18px rgba(123, 231, 199, 0.12);
+      border-color: rgba(123,231,199,0.28);
+      background: rgba(255,255,255,0.018);
+    }
+
+    /* small helper row for actions (optional) */
+    .card-actions {
+      display:flex;
+      gap:8px;
+      align-items:center;
+      justify-content:space-between;
+      margin-top:6px;
+    }
+
+    .hint {
+      font-size: 0.82rem;
+      color: rgba(255,255,255,0.42);
+    }
+
+    .btn {
+      background: linear-gradient(90deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02));
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.04);
+      cursor: pointer;
+      font-size: 0.88rem;
+    }
+
+    .btn:active { transform: translateY(1px); }
+
+    /* Accessibility / small adjustments */
+    img { display:block; }
+    h3, p { margin:0; }
+    textarea { font-family: inherit; }
+
+    /* Footer small note */
+    .foot-note {
+      margin-top: 28px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      text-align: center;
+    }
+.next-page {
+  margin-top: 18px;
+  text-align: center;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--accent-2);
+  cursor: pointer;
+  transition: transform 0.25s ease, color 0.25s ease;
+}
+
+.next-page:hover {
+  color: var(--accent-1);
+  transform: translateY(-3px);
+}
+
+    /* Make sure long captions don't break layout */
+    .card-inner { word-wrap: break-word; }
+  </style>
+</head>
+<body>
+  <main class="page" id="page">
+    <header>
+      <h1>Memories</h1>
+      <p class="lead">Sadikshya, this was the moment I officially surrendered to your cooking skills 😄 Every memory of it is still fresh in my heart.</p>
+    </header>
+
+    <section class="memories-grid" id="memoriesGrid" aria-label="Photo memories">
+      <!--
+        Photo cards.
+        Replace src attributes with your own pictures.
+        Replace titles and placeholder captions as desired.
+      -->
+
+      <!-- Card 1 -->
+      <article class="memory-card" data-index="0">
+        <div class="card-inner">
+          <div class="photo-wrap" aria-hidden="false">
+            <img src="assets/images/culture-food/sel roti.jpeg" alt="Memory photo: Sel Roti- Surprising memory">
+          </div>
+          <div class="card-content">
+            <h3 class="memory-title">Sel Roti- Surprising memory</h3>
+            <textarea class="caption-edit" data-storage-key="memory-0" aria-label="Caption for Sel Roti- Surprising memory">You showed me Sel Roti💖, remmeber while cooking it you accidently burnt 🥹your hand how painful that was yr</textarea>
+            
+          </div>
+        </div>
+      </article>
+
+      <!-- Card 2 -->
+      <article class="memory-card" data-index="1">
+        <div class="card-inner">
+          <div class="photo-wrap">
+            <img src="assets/images/culture-food/hand 1.jpeg" alt="Memory photo: The burnt Mark">
+          </div>
+          <div class="card-content">
+            <h3 class="memory-title">The burnt Mark</h3>
+            <textarea class="caption-edit" data-storage-key="memory-1" aria-label="Caption for The burnt Mark">Haha I don't wanna add 😋😏this but this is very close to me, I saw this turning from light mark to dark. Still a closed memory for me</textarea>
+            
+          </div>
+        </div>
+      </article>
+
+      <!-- Card 3 -->
+      <article class="memory-card" data-index="2">
+        <div class="card-inner">
+          <div class="photo-wrap">
+            <img src="assets/images/culture-food/hand 2.jpeg" alt="Memory photo: First apartment">
+          </div>
+          <div class="card-content">
+            <h3 class="memory-title">Wow, Another one</h3>
+            <textarea class="caption-edit" data-storage-key="memory-2" aria-label="Caption for Wow, Another one">ye to or bhi painful tha yr🥹😭🥹😭 an white angel suffer with these mark </textarea>
+            
+          </div>
+        </div>
+      </article>
+
+      <!-- Card 4 -->
+      <article class="memory-card" data-index="3">
+        <div class="card-inner">
+          <div class="photo-wrap">
+            <img src="assets/images/culture-food/chatpat.jpeg" alt="Memory photo: Chatpat Magic">
+          </div>
+          <div class="card-content">
+            <h3 class="memory-title">Chatpat Magic</h3>
+            <textarea class="caption-edit" data-storage-key="memory-3" aria-label="Caption for Chatpat Magic">Yaaar how can i fogot that this is the most unique thing I eat, seriously you teach me everything 🥹😭🥹😭🥹😭over the video call yr like every step from chopping onions to adding masala's. Thanks my Darlo for this dish yr</textarea>
+            
+          </div>
+        </div>
+      </article>
+
+      <!-- Card 5 -->
+      <article class="memory-card" data-index="4">
+        <div class="card-inner">
+          <div class="photo-wrap">
+            <img src="assets/images/culture-food/Pineapple tepache.jpeg" alt="Memory photo: Pineapple Tepache">
+          </div>
+          <div class="card-content">
+            <h3 class="memory-title">Pineapple Tepache</h3>
+            <textarea class="caption-edit" data-storage-key="memory-4" aria-label="Caption for Pineapple Tepache">You tried it and I was craving because I was assuming it will taste like beer but haha 😂🤣sadly it was not like that</textarea>
+            
+          </div>
+        </div>
+      </article>
+
+      <!-- Card 6 -->
+      <article class="memory-card" data-index="5">
+        <div class="card-inner">
+          <div class="photo-wrap">
+            <img src="assets/images/culture-food/momo.jpeg" alt="Memory photo: Bicycle ride">
+          </div>
+          <div class="card-content">
+            <h3 class="memory-title">Not only Mine- Every Nepali Jaan</h3>
+            <textarea class="caption-edit" data-storage-key="memory-5" aria-label="Caption for Not only Mine- Every Nepali Jaan">Sadi you cooked this at home and sent me the picture — and that was the moment when I saw a real momo in hand cokked by someone💖🥹💖🥹</textarea>
+            
+          </div>
+        </div>
+      </article>
+
+      <!-- Card 7 -->
+      <article class="memory-card" data-index="6">
+        <div class="card-inner">
+          <div class="photo-wrap">
+            <img src="assets/images/culture-food/momo2.jpeg" alt="Memory photo: Fried one">
+          </div>
+          <div class="card-content">
+            <h3 class="memory-title">Fried one</h3>
+            <textarea class="caption-edit" data-storage-key="memory-6" aria-label="Caption for Fried one">Oh wow, ye kya mil gya yaar merko another one ab to yaar sadikhya paani 🤤🤤 aarha h ye dekh kr</textarea>
+            
+          </div>
+        </div>
+      </article>
+
+      <!-- Card 8 -->
+      <article class="memory-card" data-index="7">
+        <div class="card-inner">
+          <div class="photo-wrap">
+            <img src="assets/images/culture-food/pokaras.jpeg" alt="Memory photo: Quiet library">
+          </div>
+          <div class="card-content">
+            <h3 class="memory-title">Pakoras</h3>
+            <textarea class="caption-edit" data-storage-key="memory-7" aria-label="Caption for Pakoras">I also loved these yr</textarea>
+            
+          </div>
+        </div>
+      </article>
+
+      <!-- Card 9 -->
+      <article class="memory-card" data-index="8">
+        <div class="card-inner">
+          <div class="photo-wrap">
+            <img src="assets/images/culture-food/meat2.jpeg" alt="Memory photo: Meat">
+          </div>
+          <div class="card-content">
+            <h3 class="memory-title">Meat</h3>
+            <textarea class="caption-edit" data-storage-key="memory-8" aria-label="Caption for Meat">You are  perfect yr sadikshya. Even I am veg😄😎, but after connecting with you, haha I started craving for Meat yr like how it tastes and everything🍗🥩 </textarea>
+            
+          </div>
+        </div>
+      </article>
+
+      <!-- Card 10 -->
+      <article class="memory-card" data-index="9">
+        <div class="card-inner">
+          <div class="photo-wrap">
+            <img src="assets/images/culture-food/meat.jpeg" alt="Memory photo: OMG, this looks delicious">
+          </div>
+          <div class="card-content">
+            <h3 class="memory-title">OMG, this looks delicious</h3>
+            <textarea class="caption-edit" data-storage-key="memory-9" aria-label="Caption for OMG, this looks delicious">Someday, please cook something for me, I wanna try some yr whatever you cook🤤🤤🤤🤤</textarea>
+            
+          </div>
+        </div>
+      </article>
+
+    </section>
+
+    <p class="foot-note">
+  Ten pictures, countless memories — Every photo tells a story, every dish holds a memory Darlo.
+</p>
+
+<a href="memories-collage.html" class="next-page">Chalo chalo abhi to or bhi baaki h →</a>
+</div>
+
+  </main>
+
+  <script>
+    // -------------------------
+    // Simple JS: autosave captions, load saved captions, copy button
+    // -------------------------
+
+    // Load saved captions from localStorage into the textareas
+    (function loadSavedCaptions(){
+      const areas = document.querySelectorAll('.caption-edit');
+      areas.forEach(area => {
+        const key = area.dataset.storageKey;
+        if (!key) return;
+        const saved = localStorage.getItem(key);
+        if (saved !== null) {
+          area.value = saved;
+        }
+        // Save on input with a small debounce to reduce writes
+        let timer = null;
+        area.addEventListener('input', () => {
+          clearTimeout(timer);
+          timer = setTimeout(() => {
+            try {
+              localStorage.setItem(key, area.value);
+            } catch (e) {
+              console.warn('Could not save caption:', e);
+            }
+          }, 300);
+        });
+      });
+    })();
+
+    // Copy caption to clipboard when Copy button is clicked
+    (function copyButtonsSetup(){
+      const buttons = document.querySelectorAll('.btn[data-copy]');
+      buttons.forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const key = btn.dataset.copy;
+          if (!key) return;
+          const value = localStorage.getItem(key) ?? document.querySelector(`textarea[data-storage-key="${key}"]`)?.value ?? '';
+          try {
+            await navigator.clipboard.writeText(value);
+            btn.textContent = 'Copied!';
+            setTimeout(() => btn.textContent = 'Copy', 1400);
+          } catch (err) {
+            // Fallback: select the textarea text and prompt user to copy
+            const ta = document.querySelector(`textarea[data-storage-key="${key}"]`);
+            if (ta) {
+              ta.select();
+              try {
+                document.execCommand('copy');
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy', 1400);
+              } catch (e) {
+                alert('Copy failed — please manually copy your text.');
+              } finally {
+                ta.selectionEnd = ta.selectionStart;
+              }
+            }
+          }
+        });
+      });
+    })();
+
+    // Accessibility improvement: auto-resize textareas to content
+    (function autosizeTextareas(){
+      const areas = document.querySelectorAll('.caption-edit');
+      areas.forEach(area => {
+        const resize = () => {
+          area.style.height = 'auto';
+          area.style.height = Math.min(area.scrollHeight, 480) + 'px';
+        };
+        area.addEventListener('input', resize);
+        // initial resize
+        resize();
+      });
+    })();
+
+    // Helpful note: If you'd prefer inline contenteditable captions rather than textareas,
+    // replace <textarea class="caption-edit"> with <div contenteditable> and adjust JS accordingly.
+    <script>
+  const nextPage = document.querySelector('.next-page');
+  if(nextPage){
+    nextPage.addEventListener('click', () => {
+      window.location.href = 'collage.html';
+    });
+  }
+</script>
+
+  </script>
+</body>
+</html>
